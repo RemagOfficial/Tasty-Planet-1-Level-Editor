@@ -14,4 +14,4 @@ with a backup
 
 # Requirements
 
-To run the python file you will need PySimpleGUI installed as it is used for the GUI
+To run the python file you will need PySimpleGUI installed as it is used for the GUI you will also need python but i shouldnt have to say that
