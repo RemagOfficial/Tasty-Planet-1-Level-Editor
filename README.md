@@ -11,3 +11,7 @@ The level editor is split into a few programs, the only one that is working is t
 
 In the situation that the program messes up and crashes and the levels xml file is missing all its data you will need to redownload the level or replace the broken level
 with a backup
+
+# Requirements
+
+To run the python file you will need PySimpleGUI installed as it is used for the GUI
