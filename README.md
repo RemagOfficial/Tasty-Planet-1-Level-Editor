@@ -6,7 +6,8 @@ To use the editor you will need to set the file path variable to the location of
 
 The level editor is split into a few programs, the Edibles Editor lets you change the size of stuff that exists in the level and thats about it for now as xml sub-elements are confusing
 
-The Map Editor lets you add rows of tiles to the height or width of the map, the script currently only adds the size of the tiles to the level size not the tiles list so that will have to be done manualy for now, i will make a guide or wiki for that in the future
+The Map Editor lets you add rows of tiles to the height or width of the map, the script currently only adds the size of the tiles to the level size not the tiles list so that will have to be done manualy for now
+[Guide](https://tastyplanet.fandom.com/wiki/Tasty_Planet_1_Level_Format)
 
 # Incase of file corruption
 
