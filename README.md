@@ -15,7 +15,3 @@ When you have set everything the way you want it click the button to update the 
 
 In the situation that the program messes up and crashes and the levels xml file is missing all its data you will need to redownload the level or replace the broken level
 with a backup
-
-# Requirements
-
-To run the python file you will need [PySimpleGUI](https://pypi.org/project/PySimpleGUI/) installed as it is used for the GUI you will also need python but i shouldnt have to say that
