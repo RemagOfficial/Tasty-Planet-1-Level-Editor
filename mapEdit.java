@@ -35,7 +35,6 @@ public class mapEdit {
             fileChooser.setDialogTitle("Choose Tasty Planet level file (.XML)");
             fileChooser.setFileFilter(filter);
 
-
             int result = fileChooser.showOpenDialog(contentPanel);
             if (result != JFileChooser.APPROVE_OPTION) {
                 JOptionPane.showMessageDialog(contentPanel, "Something went wrong, sorry", "Error", JOptionPane.ERROR_MESSAGE);
