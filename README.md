@@ -2,11 +2,12 @@
 a very basic level editor for the original tasty planet
 
 # How To Use
-To use the editor you will need to set the file path variable to the location of the level you want to edit, the only level i have tested with both scripts is the second level (bacteria.xml) so other level files may work but no support will be given by me as im not going the test the editor on every level until i understand the level format and xml editing in python more
+To use the editor you need to download the latest release JAR file and preferably run it via a command prompt to you have logs.
 
-The level editor is split into a few programs, the Edibles Editor lets you change the size of stuff that exists in the level and thats about it for now as xml sub-elements are confusing
+In the editor theres 3 options, tiles to add to the height, tiles to add to the width and a tile override (optional), the height and width should be self expanitory but the tile override option is for setting what texture Tasty Planet should use for the background of the level.
+since i haven't like looked through all the different tile names you'll have to look at a level's XML file in a text editor to get the name of its background tiles.
 
-The Map Editor lets you add rows of tiles to the height or width of the map, the script currently only adds the size of the tiles to the level size not the tiles list so that will have to be done manualy for now.
+When you have set everything the way you want it click the button to update the level file.
 
 [How the level format works](https://tastyplanet.fandom.com/wiki/Tasty_Planet_1_Level_Format)
 
