@@ -43,7 +43,7 @@ public class mapEdit {
             //File filter
             fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
             // FileNameExtensionFilter filter = new FileNameExtensionFilter("XML files", "xml");
-            fileChooser.setDialogTitle("Choose Tasty Planet src.assets folder (something like \"Tasty Planet\\assets)");
+            fileChooser.setDialogTitle("Choose Tasty Planet src.assets folder (something like \"Tasty Planet\\assets)\"");
             // fileChooser.setFileFilter(filter);
 
             int result = fileChooser.showOpenDialog(contentPanel);
