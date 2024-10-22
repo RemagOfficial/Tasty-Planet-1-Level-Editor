@@ -1,18 +1,26 @@
+package src;
+
 import javax.swing.*;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.File;
+import java.io.FileFilter;
+import java.io.IOException;
+
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 public class mapEdit {
 
@@ -24,30 +32,56 @@ public class mapEdit {
      */
     public static void main(String[] args) {
         JPanel contentPanel = new JPanel();
+        File levelsFolder = null;
+        File[] levels = null;
         try {
             // Open file chooser dialog
             JFileChooser fileChooser = new JFileChooser();
-            fileChooser.setCurrentDirectory(new File(System.getProperty("user.home")));
+            // fileChooser.setCurrentDirectory(new File(System.getProperty("user.home")));
             // dev forced file path
-            // fileChooser.setCurrentDirectory(new File("B:\\SteamLibrary\\steamapps\\common\\Tasty Planet\\assets\\levels"));
+            fileChooser.setCurrentDirectory(new File("B:\\SteamLibrary\\steamapps\\common\\Tasty Planet\\assets"));
             //File filter
-            FileNameExtensionFilter filter = new FileNameExtensionFilter("XML files", "xml");
-            fileChooser.setDialogTitle("Choose Tasty Planet level file (.XML)");
-            fileChooser.setFileFilter(filter);
-
+            fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            // FileNameExtensionFilter filter = new FileNameExtensionFilter("XML files", "xml");
+            fileChooser.setDialogTitle("Choose Tasty Planet src.assets folder (something like \"Tasty Planet\\assets)");
+            // fileChooser.setFileFilter(filter);
 
             int result = fileChooser.showOpenDialog(contentPanel);
-            if (result != JFileChooser.APPROVE_OPTION) {
+            if (result == JFileChooser.APPROVE_OPTION) {
+                File selectedDirectory = fileChooser.getSelectedFile();
+
+                // get the "levels" folder
+                levelsFolder = new File(selectedDirectory, "levels");
+
+                levels = levelsFolder.listFiles(new FileFilter() {
+                    @Override
+                    public boolean accept(File file) {
+                        return file.getName().endsWith(".xml");
+                    }
+                });
+            } else {
                 JOptionPane.showMessageDialog(contentPanel, "Something went wrong, sorry", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            File selectedFile = fileChooser.getSelectedFile();
 
-            DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-            DocumentBuilder db = dbf.newDocumentBuilder();
-            Document doc = db.parse(selectedFile);
-            Element root = doc.getDocumentElement();
+            JPanel levelPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            levelPanel.add(new JLabel("Select a level:"));
+            JComboBox<String> levelComboBox = new JComboBox<>();
+            levelComboBox.setMaximumRowCount(10);
+            if (levels != null) {
+                for (File level : levels) {
+                    levelComboBox.addItem(level.getName());
+                }
+            } else {
+                System.out.println("No levels found in " + levelsFolder.getAbsolutePath());
+            }
+            levelPanel.add(levelComboBox);
 
+            // add a blank panel for the grid to go in so its centered
+            JPanel previewPanel = new JPanel();
+
+            JButton previewButton = getButton(levelComboBox, levelsFolder, levelPanel, previewPanel);
+            levelPanel.add(previewButton);
 
             JPanel heightPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
             heightPanel.add(new JLabel("Rows of tiles to add (height)"));
@@ -65,16 +99,39 @@ public class mapEdit {
             JButton setSizeButton = new JButton("Set Size");
 
             JFrame frame = new JFrame("Map Size Editor");
-            setSizeButton.addActionListener(e -> transformResult (heightPanel, widthPanel, tileOverridePanel, root, doc, selectedFile, frame, contentPanel));
+            File finalLevelsFolder = levelsFolder;
+            setSizeButton.addActionListener(e -> {
+                String selectedLevel = (String) levelComboBox.getSelectedItem();
+                assert selectedLevel != null;
+                File selectedFile = new File(finalLevelsFolder, selectedLevel);
+                // ... parse the selected XML file and get the root element and document
+                DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+                DocumentBuilder db = null;
+                try {
+                    db = dbf.newDocumentBuilder();
+                } catch (ParserConfigurationException ex) {
+                    throw new RuntimeException(ex);
+                }
+                Document doc = null;
+                try {
+                    doc = db.parse(selectedFile);
+                } catch (SAXException | IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+                Element root = doc.getDocumentElement();
+                transformResult (levelPanel, heightPanel, widthPanel, tileOverridePanel, root, doc, selectedFile, frame, contentPanel);
+            });
             buttonPanel.add(setSizeButton);
             contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+            contentPanel.add(previewPanel);
+            contentPanel.add(levelPanel);
             contentPanel.add(heightPanel);
             contentPanel.add(widthPanel);
             contentPanel.add(tileOverridePanel);
             contentPanel.add(buttonPanel);
 
             frame.setContentPane(contentPanel);
-            frame.setMinimumSize(new Dimension(400, 200));
+            frame.setMinimumSize(new Dimension(800, 500));
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             frame.pack();
             frame.setVisible(true);
@@ -82,6 +139,62 @@ public class mapEdit {
             JOptionPane.showMessageDialog(contentPanel, "Something is went wrong, sorry :" + ex.getMessage());
         }
     }
+
+    private static JButton getButton(JComboBox<String> levelComboBox, File levelsFolder, JPanel levelPanel, JPanel previewPanel) {
+        JButton previewButton = new JButton("Preview");
+        previewButton.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                String selectedLevel = (String) levelComboBox.getSelectedItem();
+                if (selectedLevel == null) {
+                    System.out.println("No level selected");
+                    return;
+                }
+                File levelFile = new File(levelsFolder, selectedLevel);
+                try {
+                    DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+                    DocumentBuilder builder = factory.newDocumentBuilder();
+                    Document doc = builder.parse(levelFile);
+                    Element root = doc.getDocumentElement();
+                    NodeList tileLayers = root.getElementsByTagName("tilelayer");
+                    if (tileLayers.getLength() > 0) {
+                        Element tileLayer = (Element) tileLayers.item(0);
+                        int tileswide = Integer.parseInt(tileLayer.getAttribute("tileswide"));
+                        int tileshigh = Integer.parseInt(tileLayer.getAttribute("tileshigh"));
+                        // Create a grid with the extracted dimensions
+                        JPanel gridPanel = new JPanel(new GridLayout(tileshigh, tileswide));
+                        // Add grid cells to the panel
+                        for (int i = 0; i < tileshigh; i++) {
+                            for (int j = 0; j < tileswide; j++) {
+                                JLabel label = new JLabel("");
+                                label.setPreferredSize(new Dimension(20, 20)); // Set the preferred size to 20x20 pixels
+                                label.setBorder(BorderFactory.createLineBorder(Color.BLACK)); // Add a border to make the grid cells visible
+                                gridPanel.add(label);
+                            }
+                        }
+
+                        // Add the grid panel to the previewPanel if it's not already there, otherwise just revalidate it
+                        for (Component c : previewPanel.getComponents()) {
+                            if (c instanceof JPanel && ((JPanel) c).getLayout() instanceof GridLayout) {
+                                previewPanel.remove(c);
+                            }
+                        }
+
+                        // Add the new grid panel to the levelPanel
+                        previewPanel.add(gridPanel);
+
+                        // Update the levelPanel to reflect the changes
+                        previewPanel.revalidate();
+                        previewPanel.repaint();
+
+                    }
+                } catch (Exception ex) {
+                    System.out.println("Error parsing level file: " + ex.getMessage());
+                }
+            }
+        });
+        return previewButton;
+    }
+
     /**
      * Called when the user hits the "Set Size" button. This method updates the Map.xml file
      * @param heightPanel The panel that contains the height input field
@@ -92,7 +205,7 @@ public class mapEdit {
      * @param frame The frame that the content panel is in
      * @param contentPanel The panel that everything is in
      */
-    private static void transformResult(JPanel heightPanel, JPanel widthPanel, JPanel tileOverridePanel, Element root, Document doc, File selectedFile, JFrame frame, JPanel contentPanel) {
+    private static void transformResult(JPanel levelPanel, JPanel heightPanel, JPanel widthPanel, JPanel tileOverridePanel, Element root, Document doc, File selectedFile, JFrame frame, JPanel contentPanel) {
 
         try {
             // log the user input
