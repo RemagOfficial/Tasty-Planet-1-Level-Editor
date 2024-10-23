@@ -1,5 +1,6 @@
 package src;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -12,9 +13,11 @@ import javax.xml.transform.stream.StreamResult;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
+import java.util.Arrays;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -23,17 +26,21 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 public class mapEdit {
-
     /**
      * The main method of the program, this will open a file dialog for the user
      * to select a tasty planet level file, then it will open a new window with
      * input fields for the height and width of the new level size.
      * @param args The command line arguments (not used)
      */
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         JPanel contentPanel = new JPanel();
+        JPanel contentPanel2 = new JPanel();
         File levelsFolder = null;
+        File graphicsFolder = null;
+        File newGraphicsFolder = null;
+        File oldGraphicsFolder = null;
         File[] levels = null;
+        BufferedImage centerGoo = ImageIO.read(new File("src/resources/greygoobig.png"));
         try {
             // Open file chooser dialog
             JFileChooser fileChooser = new JFileChooser();
@@ -52,6 +59,9 @@ public class mapEdit {
 
                 // get the "levels" folder
                 levelsFolder = new File(selectedDirectory, "levels");
+                graphicsFolder = new File(selectedDirectory, "graphics");
+                newGraphicsFolder = new File(graphicsFolder, "newgraphics");
+                oldGraphicsFolder = new File(graphicsFolder, "oldgraphics");
 
                 levels = levelsFolder.listFiles(new FileFilter() {
                     @Override
@@ -80,7 +90,7 @@ public class mapEdit {
             // add a blank panel for the grid to go in so its centered
             JPanel previewPanel = new JPanel();
 
-            JButton previewButton = getButton(levelComboBox, levelsFolder, levelPanel, previewPanel);
+            JButton previewButton = previewLevel(levelComboBox, levelsFolder, previewPanel, centerGoo, newGraphicsFolder);
             levelPanel.add(previewButton);
 
             JPanel heightPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -99,6 +109,7 @@ public class mapEdit {
             JButton setSizeButton = new JButton("Set Size");
 
             JFrame frame = new JFrame("Map Size Editor");
+            JFrame previewFrame = new JFrame("Level Preview");
             File finalLevelsFolder = levelsFolder;
             setSizeButton.addActionListener(e -> {
                 String selectedLevel = (String) levelComboBox.getSelectedItem();
@@ -119,19 +130,27 @@ public class mapEdit {
                     throw new RuntimeException(ex);
                 }
                 Element root = doc.getDocumentElement();
-                transformResult (levelPanel, heightPanel, widthPanel, tileOverridePanel, root, doc, selectedFile, frame, contentPanel);
+                transformResult (heightPanel, widthPanel, tileOverridePanel, root, doc, selectedFile, frame, contentPanel);
             });
             buttonPanel.add(setSizeButton);
             contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
-            contentPanel.add(previewPanel);
             contentPanel.add(levelPanel);
             contentPanel.add(heightPanel);
             contentPanel.add(widthPanel);
             contentPanel.add(tileOverridePanel);
             contentPanel.add(buttonPanel);
 
+            contentPanel2.setLayout(new GridBagLayout());
+            contentPanel2.add(previewPanel);
+
+            previewFrame.setContentPane(contentPanel2);
+            previewFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            previewFrame.setMinimumSize(new Dimension(800, 600));
+            previewFrame.pack();
+            previewFrame.setVisible(true);
+
             frame.setContentPane(contentPanel);
-            frame.setMinimumSize(new Dimension(800, 500));
+            frame.setMinimumSize(new Dimension(400, 200));
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             frame.pack();
             frame.setVisible(true);
@@ -140,7 +159,7 @@ public class mapEdit {
         }
     }
 
-    private static JButton getButton(JComboBox<String> levelComboBox, File levelsFolder, JPanel levelPanel, JPanel previewPanel) {
+    private static JButton previewLevel(JComboBox<String> levelComboBox, File levelsFolder, JPanel previewPanel, BufferedImage centerGoo, File newGraphicsFolder) {
         JButton previewButton = new JButton("Preview");
         previewButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
@@ -160,27 +179,73 @@ public class mapEdit {
                         Element tileLayer = (Element) tileLayers.item(0);
                         int tileswide = Integer.parseInt(tileLayer.getAttribute("tileswide"));
                         int tileshigh = Integer.parseInt(tileLayer.getAttribute("tileshigh"));
-                        // Create a grid with the extracted dimensions
+                        int gridCellSize = 40;
+                        // get the background image from the tile element in the tilelayer element
+                        Element tile = (Element) tileLayer.getElementsByTagName("tile").item(0);
+                        String background = tile.getAttribute("name");
+                        // load the background image from the graphics folder using the background name as the filename followed by .jpg
+                        // if the file doesnt exist try with .png instead and if that still doesnt exist use white.png
+                        File backgroundFile = new File(newGraphicsFolder, background + ".jpg");
+                        if (!backgroundFile.exists()) {
+                            backgroundFile = new File(newGraphicsFolder, background + ".png");
+                            if (background.equals("oceanfloor")) {
+                                backgroundFile = new File(newGraphicsFolder, "oceanfloor1.png");
+                            }
+                            if (!backgroundFile.exists()) {
+                                backgroundFile = new File(newGraphicsFolder, "white.png");
+                            }
+                        }
+                        BufferedImage backgroundImage = ImageIO.read(backgroundFile);
+                        JLabel centerGooIcon = new JLabel(new ImageIcon(centerGoo));
+                        JPanel overlayPanel = new JPanel();
+                        overlayPanel.setLayout(new OverlayLayout(overlayPanel));
                         JPanel gridPanel = new JPanel(new GridLayout(tileshigh, tileswide));
                         // Add grid cells to the panel
                         for (int i = 0; i < tileshigh; i++) {
                             for (int j = 0; j < tileswide; j++) {
-                                JLabel label = new JLabel("");
-                                label.setPreferredSize(new Dimension(20, 20)); // Set the preferred size to 20x20 pixels
-                                label.setBorder(BorderFactory.createLineBorder(Color.BLACK)); // Add a border to make the grid cells visible
+                                JLabel label = new JLabel(new ImageIcon(backgroundImage.getScaledInstance(gridCellSize, gridCellSize, Image.SCALE_SMOOTH)));
+                                label.setPreferredSize(new Dimension(gridCellSize, gridCellSize)); // Set the preferred size to the grid cell size
                                 gridPanel.add(label);
+                                gridPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+                                gridPanel.setMinimumSize(new Dimension((gridCellSize * tileswide), (gridCellSize * tileshigh)));
+                            }
+                        }
+                        JPanel emitterPanel = new JPanel();
+                        emitterPanel.setLayout(new BoxLayout(emitterPanel, BoxLayout.Y_AXIS));
+
+                        // scan the xml for emitter elements with the type attribute "side"
+                        NodeList emitters = root.getElementsByTagName("emitter");
+                        System.out.println(emitters.getLength());
+                        for (int i = 0; i < emitters.getLength(); i++) {
+                            Element emitter = (Element) emitters.item(i);
+                            String type = emitter.getAttribute("type");
+                            if (type.equals("side")) {
+                                JLabel emitterLabel = new JLabel("Emitter: " + emitter.getAttribute("entitydef"));
+                                emitterPanel.add(emitterLabel);
                             }
                         }
 
                         // Add the grid panel to the previewPanel if it's not already there, otherwise just revalidate it
-                        for (Component c : previewPanel.getComponents()) {
+                        for (Component c : overlayPanel.getComponents()) {
                             if (c instanceof JPanel && ((JPanel) c).getLayout() instanceof GridLayout) {
-                                previewPanel.remove(c);
+                                overlayPanel.remove(c);
                             }
                         }
 
+                        // Add the emitter panel to the overlay panel
+                        overlayPanel.add(emitterPanel);
+
+                        // add centerGooIcon to the overlayPanel
+                        centerGooIcon.setAlignmentX(Component.CENTER_ALIGNMENT);
+                        centerGooIcon.setAlignmentY(Component.CENTER_ALIGNMENT);
+                        overlayPanel.add(centerGooIcon);
+
                         // Add the new grid panel to the levelPanel
-                        previewPanel.add(gridPanel);
+                        overlayPanel.add(gridPanel);
+
+                        // add the overlayPanel to the previewPanel
+                        previewPanel.removeAll();
+                        previewPanel.add(overlayPanel);
 
                         // Update the levelPanel to reflect the changes
                         previewPanel.revalidate();
@@ -205,15 +270,28 @@ public class mapEdit {
      * @param frame The frame that the content panel is in
      * @param contentPanel The panel that everything is in
      */
-    private static void transformResult(JPanel levelPanel, JPanel heightPanel, JPanel widthPanel, JPanel tileOverridePanel, Element root, Document doc, File selectedFile, JFrame frame, JPanel contentPanel) {
+    private static void transformResult(JPanel heightPanel, JPanel widthPanel, JPanel tileOverridePanel, Element root, Document doc, File selectedFile, JFrame frame, JPanel contentPanel) {
 
         try {
+            Element tilelayer = (Element) root.getElementsByTagName("tilelayer").item(0);
+            // get the current height and width attributes from the tilelayer element
+            int tileHeight = Integer.parseInt(tilelayer.getAttribute("tileheight"));
+            int tileWidth = Integer.parseInt(tilelayer.getAttribute("tilewidth"));
+            // if the user leaves the height or width input field blank, then assume it's 0
+            if (((JTextField) heightPanel.getComponent(1)).getText().isEmpty()) {
+                ((JTextField) heightPanel.getComponent(1)).setText("0");
+                System.out.println("height was empty, set to 0");
+            }
+            if (((JTextField) widthPanel.getComponent(1)).getText().isEmpty()) {
+                ((JTextField) widthPanel.getComponent(1)).setText("0");
+                System.out.println("width was empty, set to 0");
+            }
             // log the user input
             System.out.println("you entered " + ((JTextField) widthPanel.getComponent(1)).getText() + " as the added width");
             System.out.println("you entered " + ((JTextField) heightPanel.getComponent(1)).getText() + " as the added height");
-            // Add the height the user entered to the height attribute of the root element
-            float height = Float.parseFloat(root.getAttribute("height")) + (Integer.parseInt(((JTextField) heightPanel.getComponent(1)).getText()) * 256);
-            float width = Float.parseFloat(root.getAttribute("width")) + (Integer.parseInt(((JTextField) widthPanel.getComponent(1)).getText()) * 256);
+            // set the new height and width attributes on the root element multiplying the user input by the tile width and height values in the tilelayer element
+            float height = Float.parseFloat(root.getAttribute("height")) + (Integer.parseInt(((JTextField) heightPanel.getComponent(1)).getText()) * tileHeight);
+            float width = Float.parseFloat(root.getAttribute("width")) + (Integer.parseInt(((JTextField) widthPanel.getComponent(1)).getText()) * tileWidth);
 
             // Set the new height and width attributes on the root element
             System.out.println("height was: " + root.getAttribute("height"));
@@ -225,7 +303,6 @@ public class mapEdit {
             System.out.println("width is: " + root.getAttribute("width"));
 
             // set the tileshigh and tileswide attributes on the tilelayer element to its current value plus the users input
-            Element tilelayer = (Element) root.getElementsByTagName("tilelayer").item(0);
             tilelayer.setAttribute("tileshigh", String.valueOf(Integer.parseInt(tilelayer.getAttribute("tileshigh")) + Integer.parseInt(((JTextField) heightPanel.getComponent(1)).getText())));
             tilelayer.setAttribute("tileswide", String.valueOf(Integer.parseInt(tilelayer.getAttribute("tileswide")) + Integer.parseInt(((JTextField) widthPanel.getComponent(1)).getText())));
 
@@ -282,6 +359,7 @@ public class mapEdit {
         } catch (Exception ex) {
             // Show an error message to the user if something goes wrong
             JOptionPane.showMessageDialog(contentPanel, "Something went wrong, sorry :" + ex.getMessage());
+            System.out.println("Something went wrong, sorry :" + Arrays.toString(ex.getStackTrace()));
         }
 
     }
