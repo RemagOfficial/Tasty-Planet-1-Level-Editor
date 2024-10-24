@@ -18,11 +18,10 @@ import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
+import org.w3c.dom.*;
 import org.xml.sax.SAXException;
 
 public class mapEdit {
@@ -90,7 +89,7 @@ public class mapEdit {
             // add a blank panel for the grid to go in so its centered
             JPanel previewPanel = new JPanel();
 
-            JButton previewButton = previewLevel(levelComboBox, levelsFolder, previewPanel, centerGoo, newGraphicsFolder);
+            JButton previewButton = previewLevel(levelComboBox, levelsFolder, previewPanel, contentPanel2, centerGoo, newGraphicsFolder);
             levelPanel.add(previewButton);
 
             JPanel heightPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -159,7 +158,7 @@ public class mapEdit {
         }
     }
 
-    private static JButton previewLevel(JComboBox<String> levelComboBox, File levelsFolder, JPanel previewPanel, BufferedImage centerGoo, File newGraphicsFolder) {
+    private static JButton previewLevel(JComboBox<String> levelComboBox, File levelsFolder, JPanel previewPanel, JPanel contentPanel2, BufferedImage centerGoo, File newGraphicsFolder) {
         JButton previewButton = new JButton("Preview");
         previewButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
@@ -179,22 +178,12 @@ public class mapEdit {
                         Element tileLayer = (Element) tileLayers.item(0);
                         int tileswide = Integer.parseInt(tileLayer.getAttribute("tileswide"));
                         int tileshigh = Integer.parseInt(tileLayer.getAttribute("tileshigh"));
-                        int gridCellSize = 40;
+                        int tileHeight = Integer.parseInt(tileLayer.getAttribute("tileheight"));
+                        int tileWidth = Integer.parseInt(tileLayer.getAttribute("tilewidth"));
+                        int gridCellSize = tileHeight / 10;
                         // get the background image from the tile element in the tilelayer element
                         Element tile = (Element) tileLayer.getElementsByTagName("tile").item(0);
-                        String background = tile.getAttribute("name");
-                        // load the background image from the graphics folder using the background name as the filename followed by .jpg
-                        // if the file doesnt exist try with .png instead and if that still doesnt exist use white.png
-                        File backgroundFile = new File(newGraphicsFolder, background + ".jpg");
-                        if (!backgroundFile.exists()) {
-                            backgroundFile = new File(newGraphicsFolder, background + ".png");
-                            if (background.equals("oceanfloor")) {
-                                backgroundFile = new File(newGraphicsFolder, "oceanfloor1.png");
-                            }
-                            if (!backgroundFile.exists()) {
-                                backgroundFile = new File(newGraphicsFolder, "white.png");
-                            }
-                        }
+                        File backgroundFile = getBackgroundFile(tile);
                         BufferedImage backgroundImage = ImageIO.read(backgroundFile);
                         JLabel centerGooIcon = new JLabel(new ImageIcon(centerGoo));
                         JPanel overlayPanel = new JPanel();
@@ -207,11 +196,13 @@ public class mapEdit {
                                 label.setPreferredSize(new Dimension(gridCellSize, gridCellSize)); // Set the preferred size to the grid cell size
                                 gridPanel.add(label);
                                 gridPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
-                                gridPanel.setMinimumSize(new Dimension((gridCellSize * tileswide), (gridCellSize * tileshigh)));
+                                // gridPanel.setMinimumSize(new Dimension((gridCellSize * tileswide), (gridCellSize * tileshigh)));
+                                gridPanel.setMaximumSize(new Dimension((gridCellSize * tileswide), (gridCellSize * tileshigh)));
                             }
                         }
-                        JPanel emitterPanel = new JPanel();
-                        emitterPanel.setLayout(new BoxLayout(emitterPanel, BoxLayout.Y_AXIS));
+
+                        JPanel sideEmitterPanel = new JPanel();
+                        sideEmitterPanel.setLayout(new BoxLayout(sideEmitterPanel, BoxLayout.Y_AXIS));
 
                         // scan the xml for emitter elements with the type attribute "side"
                         NodeList emitters = root.getElementsByTagName("emitter");
@@ -220,20 +211,30 @@ public class mapEdit {
                             Element emitter = (Element) emitters.item(i);
                             String type = emitter.getAttribute("type");
                             if (type.equals("side")) {
-                                JLabel emitterLabel = new JLabel("Emitter: " + emitter.getAttribute("entitydef"));
-                                emitterPanel.add(emitterLabel);
+                                JPanel grayRectangle = getGrayRectangle();
+
+                                Map<String, String> attributeNameMap = getAttributeNameMap();
+                                // create a string that concatenates all the attributes and their values
+                                StringBuilder tooltipText = new StringBuilder();
+                                tooltipText.append("Emitter Information:<br>");
+                                NamedNodeMap attributes = emitter.getAttributes();
+                                for (int j = 0; j < attributes.getLength(); j++) {
+                                    Attr attribute = (Attr) attributes.item(j);
+                                    String attributeName = attributeNameMap.get(attribute.getName());
+                                    tooltipText.append(attributeName).append(": ").append(attribute.getValue()).append("<br>");
+                                }
+
+                                grayRectangle.setToolTipText("<html>" + tooltipText + "</html>");
+                                sideEmitterPanel.add(grayRectangle);
+                                sideEmitterPanel.add(Box.createRigidArea(new Dimension(0, 20)));
                             }
                         }
-
                         // Add the grid panel to the previewPanel if it's not already there, otherwise just revalidate it
                         for (Component c : overlayPanel.getComponents()) {
                             if (c instanceof JPanel && ((JPanel) c).getLayout() instanceof GridLayout) {
                                 overlayPanel.remove(c);
                             }
                         }
-
-                        // Add the emitter panel to the overlay panel
-                        overlayPanel.add(emitterPanel);
 
                         // add centerGooIcon to the overlayPanel
                         centerGooIcon.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -245,6 +246,9 @@ public class mapEdit {
 
                         // add the overlayPanel to the previewPanel
                         previewPanel.removeAll();
+
+                        sideEmitterPanel.setAlignmentY(Component.CENTER_ALIGNMENT);
+                        previewPanel.add(sideEmitterPanel);
                         previewPanel.add(overlayPanel);
 
                         // Update the levelPanel to reflect the changes
@@ -255,6 +259,63 @@ public class mapEdit {
                 } catch (Exception ex) {
                     System.out.println("Error parsing level file: " + ex.getMessage());
                 }
+            }
+
+            private File getBackgroundFile(Element tile) {
+                String background = tile.getAttribute("name");
+                // load the background image from the graphics folder using the background name as the filename followed by .jpg
+                // if the file doesn't exist try with .png instead and if that still doesn't exist use white.png
+                File backgroundFile = new File(newGraphicsFolder, background + ".jpg");
+                if (!backgroundFile.exists()) {
+                    backgroundFile = new File(newGraphicsFolder, background + ".png");
+                    if (background.equals("oceanfloor")) {
+                        backgroundFile = new File(newGraphicsFolder, "oceanfloor1.png");
+                    }
+                    if (!backgroundFile.exists()) {
+                        backgroundFile = new File(newGraphicsFolder, "white.png");
+                    }
+                }
+                return backgroundFile;
+            }
+
+            private static Map<String, String> getAttributeNameMap() {
+                Map<String, String> attributeNameMap = new HashMap<>();
+                attributeNameMap.put("anglevelposorneg", "Angular Level Positive or Negative");
+                attributeNameMap.put("angularvel", "Angular Velocity");
+                attributeNameMap.put("angularvelvariance", "Angular Velocity Variance");
+                attributeNameMap.put("maxarea", "Maximum Area");
+                attributeNameMap.put("maxlive", "Maximum Alive Casual Mode");
+                attributeNameMap.put("maxliveta", "Maximum Alive Normal Mode");
+                attributeNameMap.put("minarea", "Minimum Area");
+                attributeNameMap.put("shadowx", "Shadow X");
+                attributeNameMap.put("shadowy", "Shadow Y");
+                attributeNameMap.put("entitydef", "Entity to Emit");
+                attributeNameMap.put("type", "Emitter Type");
+                attributeNameMap.put("absdamage", "Absolute Damage Casual Mode");
+                attributeNameMap.put("absdamageta", "Absolute Damage Normal Mode");
+                attributeNameMap.put("fracdamage", "Fractional Damage Casual Mode");
+                attributeNameMap.put("fracdamageta", "Fractional Damage Normal Mode");
+                attributeNameMap.put("slowanimspeed", "Slow Animation Speed");
+                attributeNameMap.put("fastanimspeed", "Fast Animation Speed");
+                attributeNameMap.put("posx", "Position X");
+                attributeNameMap.put("posy", "Position Y");
+                attributeNameMap.put("angle", "Angle");
+                attributeNameMap.put("special", "Special");
+                attributeNameMap.put("minemitperiod", "Minimum Emit Period");
+                return attributeNameMap;
+            }
+
+            private JPanel getGrayRectangle() {
+                JPanel grayRectangle = new JPanel() {
+                    @Override
+                    protected void paintComponent(Graphics g) {
+                        super.paintComponent(g);
+                        g.setColor(Color.GRAY);
+                        g.fillRect(0, 0, getWidth(), getHeight());
+                    }
+                };
+                grayRectangle.setMaximumSize(new Dimension(5, 10)); // set the size of the rectangle
+                return grayRectangle;
             }
         });
         return previewButton;
@@ -274,7 +335,6 @@ public class mapEdit {
 
         try {
             Element tilelayer = (Element) root.getElementsByTagName("tilelayer").item(0);
-            // get the current height and width attributes from the tilelayer element
             int tileHeight = Integer.parseInt(tilelayer.getAttribute("tileheight"));
             int tileWidth = Integer.parseInt(tilelayer.getAttribute("tilewidth"));
             // if the user leaves the height or width input field blank, then assume it's 0
